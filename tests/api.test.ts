@@ -77,6 +77,12 @@ describe("Sponsor Radar GraphQL API", () => {
     expect(keysSeen).toBe(companies.size); // each company resolved once, however many jobs it has
   });
 
+  it("keeps only jobs at companies above a sponsorship threshold", async () => {
+    const { data: d } = await gql(`{ jobs(first: 100, filter: { minSoftwareFilings: 100 }) { totalCount edges { node { company { sponsorship { softwareFilings } } } } } }`);
+    expect(d.jobs.totalCount).toBeGreaterThan(0);
+    for (const e of d.jobs.edges) expect(e.node.company.sponsorship.softwareFilings).toBeGreaterThanOrEqual(100);
+  });
+
   it("rejects a bad cursor and an oversized page with clear errors", async () => {
     const bad = await gql(`{ jobs(first: 5, after: "nope") { totalCount } }`);
     expect(bad.errors[0].message).toBe("Invalid cursor");

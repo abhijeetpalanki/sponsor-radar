@@ -63,6 +63,8 @@ const typeDefs = /* GraphQL */ `
     usOnly: Boolean
     atlanta: Boolean
     postedWithinDays: Int
+    "Only companies with at least this many certified H-1B software filings."
+    minSoftwareFilings: Int
     "Only companies with at least this many frontend-titled H-1B filings."
     minFrontendFilings: Int
     companySlugs: [ID!]
@@ -130,6 +132,7 @@ interface JobFilter {
   usOnly?: boolean | null;
   atlanta?: boolean | null;
   postedWithinDays?: number | null;
+  minSoftwareFilings?: number | null;
   minFrontendFilings?: number | null;
   companySlugs?: string[] | null;
 }
@@ -138,10 +141,17 @@ async function filterJobs(list: JobRecord[], f: JobFilter | null | undefined, lo
   if (!f) return list;
   const q = f.query?.trim().toLowerCase();
   const since = f.postedWithinDays ? Date.now() - f.postedWithinDays * 86_400_000 : null;
-  const sponsorship = f.minFrontendFilings != null ? await loaders.sponsorship.loadMany([...new Set(list.map((j) => j.company))]) : null;
-  const okCompanies = sponsorship
-    ? new Set([...new Set(list.map((j) => j.company))].filter((_, i) => ((sponsorship[i] as Sponsorship | null)?.frontendFilings ?? 0) >= (f.minFrontendFilings ?? 0)))
-    : null;
+  let okCompanies: Set<string> | null = null;
+  if (f.minSoftwareFilings != null || f.minFrontendFilings != null) {
+    const slugs = [...new Set(list.map((j) => j.company))];
+    const sponsorship = (await loaders.sponsorship.loadMany(slugs)) as (Sponsorship | null)[];
+    okCompanies = new Set(
+      slugs.filter((_, i) =>
+        (sponsorship[i]?.softwareFilings ?? 0) >= (f.minSoftwareFilings ?? 0) &&
+        (sponsorship[i]?.frontendFilings ?? 0) >= (f.minFrontendFilings ?? 0),
+      ),
+    );
+  }
   return list.filter((j) =>
     (!q || `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q)) &&
     (f.remote == null || j.remote === f.remote) &&
