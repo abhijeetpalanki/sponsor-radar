@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { serverQuery } from "@/server/query";
 import { COMPANIES } from "@/server/companies";
 import { ago, num, usd } from "@/lib/format";
+import TierBadge, { type SponsorshipTier } from "@/components/TierBadge";
 
 interface CompanyData {
   company: {
     name: string;
     ats: string;
     careersUrl: string;
+    sponsorshipTier: SponsorshipTier;
     sponsorship: {
       employerNames: string[];
       softwareFilings: number;
@@ -26,7 +28,7 @@ interface CompanyData {
 const COMPANY_QUERY = /* GraphQL */ `
   query Company($slug: ID!) {
     company(slug: $slug) {
-      name ats careersUrl
+      name ats careersUrl sponsorshipTier
       sponsorship { employerNames softwareFilings frontendFilings medianWage topStates { state count } topFrontendTitles { title count } fiscalYears }
       openRoles(filter: { usOnly: true }) { id title location remote url postedAt }
     }
@@ -53,7 +55,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   return (
     <article>
       <Link href="/" className="text-sm text-muted hover:text-ink">← All roles</Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight">{c.name}</h1>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-bold tracking-tight">{c.name}</h1>
+        <TierBadge tier={c.sponsorshipTier} />
+      </div>
 
       <section aria-labelledby="sp-heading" className="mt-6 rounded-xl border border-line bg-surface p-5">
         <h2 id="sp-heading" className="font-semibold">H-1B sponsorship for software roles</h2>

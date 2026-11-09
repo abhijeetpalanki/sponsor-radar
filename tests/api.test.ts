@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import DataLoader from "dataloader";
 import { createYoga } from "graphql-yoga";
-import { schema, type Context } from "@/server/schema";
+import { schema, sponsorshipTier, type Context } from "@/server/schema";
 import * as data from "@/server/data";
 
 function client() {
@@ -81,6 +81,17 @@ describe("Sponsor Radar GraphQL API", () => {
     const { data: d } = await gql(`{ jobs(first: 100, filter: { minSoftwareFilings: 100 }) { totalCount edges { node { company { sponsorship { softwareFilings } } } } } }`);
     expect(d.jobs.totalCount).toBeGreaterThan(0);
     for (const e of d.jobs.edges) expect(e.node.company.sponsorship.softwareFilings).toBeGreaterThanOrEqual(100);
+  });
+
+  it("buckets filing counts into tiers at the exact thresholds", () => {
+    expect([0, 1, 24, 25, 99, 100, 429].map(sponsorshipTier)).toEqual(["NONE", "OCCASIONAL", "OCCASIONAL", "REGULAR", "REGULAR", "ROUTINE", "ROUTINE"]);
+  });
+
+  it("exposes Company.sponsorshipTier through the API", async () => {
+    const { data: d } = await gql(`{ heavy: company(slug: "databricks") { sponsorshipTier sponsorship { softwareFilings } } none: company(slug: "posthog") { sponsorshipTier sponsorship { softwareFilings } } }`);
+    expect(d.heavy).toEqual({ sponsorshipTier: "ROUTINE", sponsorship: { softwareFilings: expect.any(Number) } });
+    expect(d.heavy.sponsorship.softwareFilings).toBeGreaterThanOrEqual(100);
+    expect(d.none).toEqual({ sponsorshipTier: "NONE", sponsorship: null });
   });
 
   it("rejects a bad cursor and an oversized page with clear errors", async () => {

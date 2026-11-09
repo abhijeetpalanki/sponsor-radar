@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { gql } from "@/lib/gql";
 import { ago, num, usd } from "@/lib/format";
+import TierBadge, { type SponsorshipTier } from "@/components/TierBadge";
 
 interface JobNode {
   id: string;
@@ -14,7 +15,7 @@ interface JobNode {
   atlanta: boolean;
   url: string;
   postedAt: string | null;
-  company: { slug: string; name: string; sponsorship: { softwareFilings: number; medianWage: number | null } | null };
+  company: { slug: string; name: string; sponsorshipTier: SponsorshipTier; sponsorship: { softwareFilings: number; medianWage: number | null } | null };
 }
 
 interface JobsResult {
@@ -25,7 +26,7 @@ const JOBS_QUERY = /* GraphQL */ `
   query Jobs($filter: JobFilter, $after: String) {
     jobs(filter: $filter, first: 20, after: $after) {
       totalCount
-      edges { cursor node { id title location remote atlanta url postedAt company { slug name sponsorship { softwareFilings medianWage } } } }
+      edges { cursor node { id title location remote atlanta url postedAt company { slug name sponsorshipTier sponsorship { softwareFilings medianWage } } } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -181,12 +182,11 @@ export default function JobExplorer() {
               <div className="flex flex-wrap gap-2 text-xs">
                 {j.remote && <span className="rounded-full bg-surface-2 px-2.5 py-1">Remote</span>}
                 {j.atlanta && <span className="rounded-full bg-surface-2 px-2.5 py-1">Atlanta</span>}
-                {j.company.sponsorship ? (
-                  <span className="rounded-full bg-accent/15 px-2.5 py-1 font-medium text-accent">
+                <TierBadge tier={j.company.sponsorshipTier} />
+                {j.company.sponsorship && (
+                  <span className="px-1 py-1 text-muted">
                     {num(j.company.sponsorship.softwareFilings)} H-1B software filings · median {usd(j.company.sponsorship.medianWage)}
                   </span>
-                ) : (
-                  <span className="rounded-full border border-line px-2.5 py-1 text-muted">No recent H-1B software filings</span>
                 )}
               </div>
             </div>

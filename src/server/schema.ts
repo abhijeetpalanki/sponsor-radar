@@ -16,6 +16,8 @@ const typeDefs = /* GraphQL */ `
     careersUrl: String!
     "Certified H-1B software filings matched to this company, or null if none were found."
     sponsorship: Sponsorship
+    "How routinely this company sponsors, derived from its certified software filings."
+    sponsorshipTier: SponsorshipTier!
     openRoleCount: Int!
     openRoles(filter: JobFilter): [Job!]!
   }
@@ -79,6 +81,18 @@ const typeDefs = /* GraphQL */ `
 
   enum CompanySort { SOFTWARE_FILINGS, FRONTEND_FILINGS, OPEN_ROLES, NAME }
 
+  """Certified H-1B software filings in the loaded disclosure files, bucketed."""
+  enum SponsorshipTier {
+    "100 or more filings"
+    ROUTINE
+    "25 to 99 filings"
+    REGULAR
+    "1 to 24 filings"
+    OCCASIONAL
+    "No filings matched"
+    NONE
+  }
+
   type PageInfo { hasNextPage: Boolean!, endCursor: String }
   type CompanyEdge { cursor: String!, node: Company! }
   type CompanyConnection { totalCount: Int!, edges: [CompanyEdge!]!, pageInfo: PageInfo! }
@@ -105,6 +119,16 @@ const typeDefs = /* GraphQL */ `
     stats: Stats!
   }
 `;
+
+export type SponsorshipTier = "ROUTINE" | "REGULAR" | "OCCASIONAL" | "NONE";
+
+/** Bucket a filing count. Kept pure and exported so the thresholds are unit-tested on their own. */
+export function sponsorshipTier(softwareFilings: number): SponsorshipTier {
+  if (softwareFilings >= 100) return "ROUTINE";
+  if (softwareFilings >= 25) return "REGULAR";
+  if (softwareFilings >= 1) return "OCCASIONAL";
+  return "NONE";
+}
 
 const MAX_PAGE = 100;
 const encode = (i: number) => Buffer.from(`o:${i}`).toString("base64url");
@@ -216,6 +240,9 @@ export const schema = createSchema<Context>({
     Company: {
       careersUrl: (c: CompanySeed) => careersUrl(c),
       sponsorship: (c: CompanySeed, _a: unknown, { loaders }: Context) => loaders.sponsorship.load(c.slug),
+      // Goes through the same batched loader as `sponsorship`, so asking for both costs one lookup.
+      sponsorshipTier: async (c: CompanySeed, _a: unknown, { loaders }: Context) =>
+        sponsorshipTier((await loaders.sponsorship.load(c.slug))?.softwareFilings ?? 0),
       openRoleCount: async (c: CompanySeed, _a: unknown, { loaders }: Context) => (await loaders.openRoles.load(c.slug)).length,
       openRoles: async (c: CompanySeed, { filter }: { filter?: JobFilter }, { loaders }: Context) =>
         filterJobs([...(await loaders.openRoles.load(c.slug))].sort(byPostedDesc), filter, loaders),

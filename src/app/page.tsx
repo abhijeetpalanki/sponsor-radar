@@ -3,17 +3,18 @@ import { Suspense } from "react";
 import JobExplorer from "@/components/JobExplorer";
 import { serverQuery } from "@/server/query";
 import { num, usd } from "@/lib/format";
+import TierBadge, { type SponsorshipTier } from "@/components/TierBadge";
 
 interface HomeData {
   stats: { trackedCompanies: number; companiesWithSponsorship: number; openRoles: number; usRemoteRoles: number; lcaEmployers: number; jobsUpdatedAt: string };
-  companies: { edges: { node: { slug: string; name: string; openRoleCount: number; sponsorship: { softwareFilings: number; medianWage: number | null } | null } }[] };
+  companies: { edges: { node: { slug: string; name: string; openRoleCount: number; sponsorshipTier: SponsorshipTier; sponsorship: { softwareFilings: number; medianWage: number | null } | null } }[] };
 }
 
 const HOME_QUERY = /* GraphQL */ `
   {
     stats { trackedCompanies companiesWithSponsorship openRoles usRemoteRoles lcaEmployers jobsUpdatedAt }
     companies(first: 8, filter: { sponsorsH1B: true, hasOpenRoles: true }, sort: SOFTWARE_FILINGS) {
-      edges { node { slug name openRoleCount sponsorship { softwareFilings medianWage } } }
+      edges { node { slug name openRoleCount sponsorshipTier sponsorship { softwareFilings medianWage } } }
     }
   }
 `;
@@ -58,6 +59,7 @@ export default async function Home() {
               <Link href={`/companies/${c.slug}`} className="block h-full rounded-xl border border-line bg-surface p-4 hover:border-accent/60">
                 <span className="font-mono text-xs text-muted">#{i + 1}</span>
                 <span className="mt-1 block font-semibold">{c.name}</span>
+                <TierBadge tier={c.sponsorshipTier} className="mt-2" />
                 <span className="mt-2 block text-sm text-muted">
                   {num(c.sponsorship?.softwareFilings ?? 0)} software filings · median {usd(c.sponsorship?.medianWage)}
                 </span>
