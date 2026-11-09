@@ -1,0 +1,22 @@
+/** Sponsor Radar mark: a radar sweep that has found a sponsor (the gold check). Same drawing as src/app/icon.svg. */
+export default function Logo({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden focusable="false">
+      <defs>
+        <linearGradient id="sr-trail" x1="0" y1="0" x2="1" y2="0">
+          <stop offset=".1" stopColor="#fff" stopOpacity="0" />
+          <stop offset="1" stopColor="#fff" stopOpacity=".6" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="#5b3f9e" />
+      <path d="M29 35 L43.1 20.9 A20 20 0 0 0 14.9 20.9 Z" fill="url(#sr-trail)" />
+      <g fill="none" stroke="#fff" strokeWidth="4">
+        <circle cx="29" cy="35" r="20" opacity=".4" />
+        <circle cx="29" cy="35" r="10" opacity=".75" />
+      </g>
+      <path d="M29 35 L44.1 19.9" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="46" cy="18" r="11" fill="#f5c45e" />
+      <path d="M41 18.5l3.4 3.4 6.4-7" fill="none" stroke="#1b1530" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
