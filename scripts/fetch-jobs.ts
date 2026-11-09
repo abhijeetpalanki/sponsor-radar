@@ -2,26 +2,16 @@
  * Pull open roles from public job-board APIs (Greenhouse, Ashby, Lever) for the
  * tracked companies and keep frontend / fullstack engineering roles.
  *
- * Usage: npx tsx scripts/fetch-jobs.ts
- * Output: data/jobs.json
+ * Usage: npm run data:jobs
+ * Output: data/jobs.json (only rewritten when a role changed)
+ * Exit 1 when too many boards fail, so the nightly workflow commits nothing.
  */
-import { writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { COMPANIES, type CompanySeed } from "../src/server/companies";
+import { mergeJobs, tooManyFailures, type Job } from "./lib/merge-jobs";
 
 const ROLE = /front[\s-]?end|full[\s-]?stack|\bui\b|web (engineer|developer)|react|design engineer|product engineer/i;
 const NOT_ROLE = /manager|director|recruit|designer(?! engineer)|intern\b|sales|marketing|account/i;
-
-export interface Job {
-  id: string;
-  company: string;
-  title: string;
-  location: string;
-  remote: boolean;
-  usBased: boolean;
-  atlanta: boolean;
-  url: string;
-  postedAt: string | null;
-}
 
 const US = /united states|\bUSA?\b|remote[-,\s]*(us|usa|united states)|\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b|new york|san francisco|seattle|atlanta|austin|boston|chicago|denver|los angeles|bay area/i;
 const NON_US = /canada|toronto|vancouver|london|uk\b|united kingdom|ireland|dublin|germany|berlin|india|bangalore|bengaluru|singapore|australia|sydney|japan|tokyo|brazil|mexico|poland|netherlands|amsterdam|spain|france|paris|israel|emea|apac|latam/i;
@@ -60,23 +50,43 @@ async function fetchCompany(c: CompanySeed): Promise<Job[]> {
   });
 }
 
+function readPrevious(): Job[] {
+  if (!existsSync("data/jobs.json")) return [];
+  return (JSON.parse(readFileSync("data/jobs.json", "utf8")) as { jobs: Job[] }).jobs;
+}
+
 async function main() {
-  const jobs: Job[] = [];
-  const failures: string[] = [];
+  const fresh = new Map<string, Job[]>();
+  const failures: { slug: string; message: string }[] = [];
   for (const c of COMPANIES) {
     try {
       const all = await fetchCompany(c);
       const kept = all.filter((j) => ROLE.test(j.title) && !NOT_ROLE.test(j.title));
-      jobs.push(...kept);
+      fresh.set(c.slug, kept);
       console.log(`${c.name.padEnd(14)} ${String(all.length).padStart(4)} open, ${kept.length} frontend/fullstack`);
     } catch (e) {
-      failures.push(`${c.name}: ${(e as Error).message}`);
+      failures.push({ slug: c.slug, message: (e as Error).message });
     }
+  }
+  if (failures.length) console.log("Failed:", failures.map((f) => `${f.slug}: ${f.message}`).join("; "));
+
+  if (tooManyFailures(failures.length, COMPANIES.length)) {
+    console.error(`\n${failures.length} of ${COMPANIES.length} boards failed. Not writing data/jobs.json.`);
+    process.exit(1);
+  }
+
+  const { jobs, carriedOver, changed } = mergeJobs(readPrevious(), fresh, failures.map((f) => f.slug));
+  if (carriedOver.length) console.log(`Kept previous roles for: ${carriedOver.join(", ")}`);
+  if (!changed) {
+    console.log(`\nNo role changes (${jobs.length} roles). data/jobs.json left as is.`);
+    return;
   }
   mkdirSync("data", { recursive: true });
   writeFileSync("data/jobs.json", JSON.stringify({ generatedAt: new Date().toISOString(), jobs }));
   console.log(`\nWrote data/jobs.json: ${jobs.length} roles (${jobs.filter((j) => j.usBased).length} US, ${jobs.filter((j) => j.remote && j.usBased).length} US-remote, ${jobs.filter((j) => j.atlanta).length} Atlanta)`);
-  if (failures.length) console.log("Failed:", failures.join("; "));
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
